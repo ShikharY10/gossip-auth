@@ -93,47 +93,7 @@ func (j *Middleware) VarifyRefreshToken(token string) (claim jwt.MapClaims, err 
 	}
 }
 
-// Middleware for authorizing user using access token
-func (j *Middleware) APIV1_Authorization() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		bearer := c.GetHeader("Authorization")
-		if bearer == "" {
-			c.AbortWithStatusJSON(http.StatusForbidden, "token not found")
-			return
-		} else {
-			token := bearer[len("Bearer "):]
-			if token == "" {
-				c.AbortWithStatusJSON(http.StatusForbidden, "token not found")
-				return
-			} else {
-				claim, err := j.VarifyAccessToken(token)
-				if err != nil {
-					if err.Error() == "Token is expired" {
-						c.AbortWithStatusJSON(401, err.Error())
-					} else {
-						c.AbortWithStatus(400)
-					}
-				} else {
-					isTokenValid := j.Cache.IsTokenValid(claim["id"].(string), token, "access")
-					if isTokenValid {
-						data := map[string]interface{}{
-							"id":       claim["id"].(string),
-							"username": claim["username"].(string),
-							"role":     claim["role"].(string),
-						}
-						c.Keys = data
-						c.Next()
-					} else {
-						c.AbortWithStatus(401)
-					}
-
-				}
-			}
-		}
-	}
-}
-
-func (mw *Middleware) SingleUseTokenVarification(use string) gin.HandlerFunc {
+func (mw *Middleware) SingleUseTokenVarification(use string, delete bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token string
 		token, err := c.Cookie("SUT-AUTHORIZATION")
@@ -162,7 +122,10 @@ func (mw *Middleware) SingleUseTokenVarification(use string) gin.HandlerFunc {
 				if email == claims["email"].(string) && purpose == claims["purpose"].(string) {
 					c.Set("tokenid", claims["tokenid"].(string))
 					c.Set("email", claims["email"].(string))
-					c.SetCookie("SUT-AUTHORIZATION", "", -1, "/", "", false, true)
+					if delete {
+						c.SetCookie("SUT-AUTHORIZATION", "", -1, "/", "", false, true)
+					}
+
 					c.Next()
 					return
 				} else {
@@ -213,6 +176,46 @@ func (mw *Middleware) APIV3EmailUpdateVarification() gin.HandlerFunc {
 			}
 		} else {
 			c.AbortWithStatusJSON(401, "token not found")
+		}
+	}
+}
+
+// Middleware for authorizing user using access token
+func (j *Middleware) APIV1_Authorization() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		bearer := c.GetHeader("Authorization")
+		if bearer == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, "token not found")
+			return
+		} else {
+			token := bearer[len("Bearer "):]
+			if token == "" {
+				c.AbortWithStatusJSON(http.StatusForbidden, "token not found")
+				return
+			} else {
+				claim, err := j.VarifyAccessToken(token)
+				if err != nil {
+					if err.Error() == "Token is expired" {
+						c.AbortWithStatusJSON(401, err.Error())
+					} else {
+						c.AbortWithStatus(400)
+					}
+				} else {
+					isTokenValid := j.Cache.IsTokenValid(claim["id"].(string), token, "access")
+					if isTokenValid {
+						data := map[string]interface{}{
+							"id":       claim["id"].(string),
+							"username": claim["username"].(string),
+							"role":     claim["role"].(string),
+						}
+						c.Keys = data
+						c.Next()
+					} else {
+						c.AbortWithStatus(401)
+					}
+
+				}
+			}
 		}
 	}
 }
