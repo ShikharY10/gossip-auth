@@ -77,10 +77,8 @@ func (ac *AuthController) RequestOtpForSignup(c *gin.Context) {
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong")
 		} else {
-			response := map[string]string{
-				"token": token,
-			}
-			c.JSON(http.StatusCreated, response)
+			c.SetCookie("SUT-AUTHORIZATION", token, 300, "/", "", false, true)
+			c.JSON(201, "Successfully Sent")
 		}
 	} else {
 		c.AbortWithStatusJSON(http.StatusBadRequest, "email not found")
@@ -97,11 +95,10 @@ func (ac *AuthController) VarifySignupOTP(c *gin.Context) {
 	c.BindJSON(&request)
 
 	id := c.Value("tokenid").(string)
-	fmt.Println("id from VarifyOTP: ", id)
 	otp := request["otp"].(string)
 
 	if ac.Handler.Cache.VarifyOTP(id, otp) {
-		ac.Handler.Cache.RedisClient.Set(id+"_status", "varified", time.Minute*(60*5))
+		ac.Handler.Cache.RedisClient.Set(id+".status", "varified", time.Minute*(60*5))
 		response := map[string]string{
 			"status": "successful",
 		}
@@ -138,7 +135,7 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 	c.Header("service", "Gossip API")
 
 	tokenId := c.Value("tokenid").(string)
-	result := ac.Handler.Cache.RedisClient.Get(tokenId + "_status")
+	result := ac.Handler.Cache.RedisClient.Get(tokenId + ".status")
 	if result.Val() == "varified" {
 
 		// collecting request body
@@ -157,6 +154,10 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		}
 
 		deliveryId, err := ac.Handler.DataBase.AddUserPayloadsField()
+		if err != nil {
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
 
 		objectId := primitive.NewObjectID()
 
@@ -213,9 +214,9 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		} else {
 			c.JSON(http.StatusCreated, user)
 			ac.Handler.Cache.RedisClient.Del(tokenId)
-			ac.Handler.Cache.RedisClient.Del(tokenId + "_auth")
-			ac.Handler.Cache.RedisClient.Del(tokenId + "_status")
-			ac.Handler.Cache.RedisClient.Del(tokenId + "_purpose")
+			ac.Handler.Cache.RedisClient.Del(tokenId + ".auth")
+			ac.Handler.Cache.RedisClient.Del(tokenId + ".status")
+			ac.Handler.Cache.RedisClient.Del(tokenId + ".purpose")
 		}
 
 	} else {
