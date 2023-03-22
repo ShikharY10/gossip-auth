@@ -118,5 +118,19 @@ func LoadENV() *ENV {
 		env.GIN_MODE = "debug"
 	}
 
+	value, found = os.LookupEnv("LOG_SERVER_HOST")
+	if found {
+		env.LogServerHost = value
+	} else {
+		env.LogServerHost = "127.0.0.1"
+	}
+
+	value, found = os.LookupEnv("LOG_SERVER_PORT")
+	if found {
+		env.LogServerPort = value
+	} else {
+		env.LogServerPort = "10223"
+	}
+
 	return &env
 }

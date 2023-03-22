@@ -3,12 +3,15 @@ package handlers
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ShikharY10/gbAUTH/cmd/admin"
 	config "github.com/ShikharY10/gbAUTH/cmd/configs"
 	"github.com/ShikharY10/gbAUTH/cmd/models"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type DataBase struct {
@@ -45,4 +48,147 @@ func (db *DataBase) IsUsernameAwailable(username string) error {
 		}
 	}
 	return nil
+}
+
+func (db *DataBase) AddUserPayloadsField() (*primitive.ObjectID, error) {
+	b := bson.M{
+		"msg": bson.M{},
+	}
+	res, err := db.payloadsCollection.InsertOne(context.TODO(), b)
+	if err != nil {
+		return nil, err
+	}
+	_id := res.InsertedID.(primitive.ObjectID)
+	return &_id, nil
+}
+
+func (db *DataBase) CreateNewUser(user models.User) error {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancelFunc()
+	_, err := db.userCollection.InsertOne(ctx, user)
+	return err
+}
+
+func (db *DataBase) InsetUserInFrequencyTable(id primitive.ObjectID, username string) error {
+	fTable := models.FrequencyTable{
+		Id:        id,
+		Username:  username,
+		Frequency: 0,
+	}
+	_, err := db.frequencyCollection.InsertOne(
+		context.TODO(),
+		fTable,
+	)
+	if err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func (db *DataBase) GetUserData(filter bson.M, findOption *options.FindOptions) (*models.User, error) {
+	cursor, err := db.userCollection.Find(context.TODO(), filter, findOption)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []models.User
+	for cursor.Next(context.TODO()) {
+		var user models.User
+		if err := cursor.Decode(&user); err != nil {
+			continue
+		} else {
+			users = append(users, user)
+		}
+	}
+	if len(users) > 0 {
+		return &users[0], nil
+	}
+	return nil, errors.New("no document found")
+}
+
+func (db *DataBase) UpdateLogoutStatus(username string, status bool) error {
+	result, err := db.userCollection.UpdateOne(
+		context.TODO(),
+		bson.M{"username": username},
+		bson.M{"$set": bson.M{"logout": status}},
+	)
+	if err != nil {
+		return err
+	}
+
+	if result.ModifiedCount > int64(0) {
+		return nil
+	}
+	return err
+}
+
+func (db *DataBase) GetUserEmail(username string) (string, error) {
+	otps := options.Find().SetProjection(bson.D{{Key: "email", Value: 1}})
+	user, err := db.GetUserData(bson.M{"username": username}, otps)
+	if err != nil {
+		return "", err
+	} else {
+		return user.Email, nil
+	}
+}
+
+func (db *DataBase) UpdateUserName(id string, name string) error {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	} else {
+		result, err := db.userCollection.UpdateOne(
+			context.TODO(),
+			bson.M{"_id": _id},
+			bson.M{"$set": bson.M{"name": name}},
+		)
+		if err != nil {
+			return err
+		}
+		if result.ModifiedCount > int64(0) {
+			return nil
+		}
+		return errors.New("something went wrong")
+	}
+}
+
+func (db *DataBase) UpdateUserAvatar(id string, avatar models.Avatar) error {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	} else {
+		result, err := db.userCollection.UpdateOne(
+			context.TODO(),
+			bson.M{"_id": _id},
+			bson.M{"$set": bson.M{"avatar": avatar}},
+		)
+		if err != nil {
+			return err
+		}
+		if result.ModifiedCount > int64(0) {
+			return nil
+		}
+		return errors.New("something went wrong")
+	}
+}
+
+func (db *DataBase) UpdateUserDetail(id string, key string, value any) error {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	} else {
+		result, err := db.userCollection.UpdateOne(
+			context.TODO(),
+			bson.M{"_id": _id},
+			bson.M{"$set": bson.M{key: value}},
+		)
+		if err != nil {
+			return err
+		}
+		if result.ModifiedCount > int64(0) {
+			return nil
+		}
+		return errors.New("something went wrong")
+	}
 }

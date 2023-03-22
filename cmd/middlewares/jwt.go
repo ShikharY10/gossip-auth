@@ -3,6 +3,7 @@ package middlewares
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	config "github.com/ShikharY10/gbAUTH/cmd/configs"
@@ -131,3 +132,89 @@ func (j *Middleware) APIV1_Authorization() gin.HandlerFunc {
 		}
 	}
 }
+
+func (mw *Middleware) SingleUseTokenVarification(use string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var token string
+		token, err := c.Cookie("SUT-AUTHORIZATION")
+		if err != nil {
+			c.AbortWithStatusJSON(401, "token not found")
+		} else {
+			newToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, errors.New("something went wrong")
+				}
+				key := append(mw.jWT_ACCESS_TOKEN_SECRET_KEY, mw.jWT_REFRESH_TOKEN_SECRET_KEY...)
+				return key, nil
+			})
+			if err != nil {
+				c.AbortWithStatusJSON(401, "invalid SUT token")
+				return
+			}
+
+			if claims, ok := newToken.Claims.(jwt.MapClaims); ok && newToken.Valid {
+				result1 := mw.Cache.RedisClient.Get(claims["tokenid"].(string) + ".email")
+				email := result1.Val()
+
+				result2 := mw.Cache.RedisClient.Get(claims["tokenid"].(string) + ".purpose")
+				purpose := result2.Val()
+
+				if email == claims["email"].(string) && purpose == claims["purpose"].(string) {
+					c.Set("tokenid", claims["tokenid"].(string))
+					c.Set("email", claims["email"].(string))
+					c.SetCookie("SUT-AUTHORIZATION", "", -1, "/", "", false, true)
+					c.Next()
+					return
+				} else {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, "token integrity compromised")
+					return
+				}
+			} else {
+				c.AbortWithStatusJSON(401, "invalid SUT token")
+				return
+			}
+		}
+	}
+}
+
+func (mw *Middleware) APIV3EmailUpdateVarification() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fmt.Println("New Email Update Request=== " + c.Request.URL.Path + " ===")
+		token, err := c.Cookie("SUT-AUTHORIZATION")
+		if err == nil {
+			newToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, errors.New("something went wrong")
+				}
+				key := append(mw.jWT_ACCESS_TOKEN_SECRET_KEY, mw.jWT_REFRESH_TOKEN_SECRET_KEY...)
+				return key, nil
+			})
+			if err != nil {
+				c.AbortWithStatusJSON(401, "invalid SUT token")
+				return
+			}
+
+			if claims, ok := newToken.Claims.(jwt.MapClaims); ok && newToken.Valid {
+				tokenID1 := claims["tokenid1"].(string)
+				tokenID2 := claims["tokenid2"].(string)
+
+				purpose := mw.Cache.RedisClient.Get(tokenID1 + tokenID2 + ".purpose").Val()
+
+				if purpose == claims["purpose"].(string) {
+					c.Set("tokenid1", tokenID1)
+					c.Set("tokenid2", tokenID2)
+					fmt.Println("===Email Update Request Varified ===")
+					c.Next()
+					return
+				} else {
+					c.AbortWithStatusJSON(http.StatusUnauthorized, "token data compromised")
+					return
+				}
+			}
+		} else {
+			c.AbortWithStatusJSON(401, "token not found")
+		}
+	}
+}
+
+// 4101 1404 2076

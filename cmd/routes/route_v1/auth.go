@@ -5,4 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {}
+func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {
+	router.GET("/test", controller.Test)
+
+}

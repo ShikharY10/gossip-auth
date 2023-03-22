@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/ShikharY10/gbAUTH/cmd/admin"
@@ -15,18 +16,25 @@ import (
 func main() {
 	env := config.LoadENV()
 
+	if env.GIN_MODE == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	logger, err := admin.InitializeLogger(env, "AUTH")
 	if err != nil {
+		fmt.Println("1")
 		log.Fatal(err)
 	}
 
 	mongoDB, err := config.ConnectMongoDB(env)
 	if err != nil {
+		fmt.Println("2")
 		log.Fatal(err)
 	}
 
 	redis, err := config.ConnectRedis(env)
 	if err != nil {
+		fmt.Println("3")
 		log.Fatal(err)
 	}
 
