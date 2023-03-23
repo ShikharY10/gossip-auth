@@ -301,19 +301,11 @@ func (ac AuthController) LogOut(c *gin.Context) {
 	c.Header("Content-Type", "application/json")
 	c.Header("service", "Gossip API")
 
-	username := c.Value("username").(string)
 	id := c.Value("id").(string)
 
 	ac.Handler.Cache.DeleteTokenExpiry(id)
 	c.SetCookie("refresh", "", -1, "/", "", false, true)
 	c.JSON(200, "Successfully Logout")
-
-	result := ac.Handler.DataBase.UpdateLogoutStatus(username, true)
-	if result == nil {
-		c.JSON(http.StatusCreated, "sucessfully logged out")
-	} else {
-		c.AbortWithStatus(http.StatusPreconditionFailed)
-	}
 }
 
 func (ac *AuthController) RequestOtpForLogin(c *gin.Context) {
