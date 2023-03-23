@@ -10,9 +10,9 @@ func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {
 
 	// Signup Routes
 	router.POST("/requestsignupotp", controller.RequestOtpForSignup)
-	router.POST("varifysignupotp", controller.Middleware.SingleUseTokenVarification("singup", false), controller.VarifySignupOTP)
+	router.POST("varifysignupotp", controller.Middleware.SingleUseTokenVarification("signup", false), controller.VarifySignupOTP)
 	router.GET("/isusernameawailable", controller.IsUsernameAwailable)
-	router.POST("/signup", controller.Middleware.SingleUseTokenVarification("singup", true), controller.SignUp)
+	router.POST("/signup", controller.Middleware.SingleUseTokenVarification("signup", false), controller.SignUp)
 
 	// Login Routes
 	router.POST("requestloginotp", controller.RequestOtpForLogin)

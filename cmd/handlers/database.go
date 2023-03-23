@@ -28,6 +28,32 @@ func InitializeDataBase(mongodb *config.MongoDB, logger *admin.Logger) *DataBase
 	}
 }
 
+func (db *DataBase) IsEmailAvailable(email string) error {
+	opts := options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := db.userCollection.Find(
+		context.TODO(),
+		bson.M{"email": email},
+		opts,
+	)
+	if err != nil {
+		return err
+	}
+	var users []models.User
+	for cursor.Next(context.TODO()) {
+		var user models.User
+		err := cursor.Decode(&user)
+		if err != nil {
+			return err
+		}
+		users = append(users, user)
+	}
+	if len(users) == 0 {
+		return nil
+	}
+	return errors.New("email already exist")
+
+}
+
 func (db *DataBase) IsUsernameAwailable(username string) error {
 	cursor, err := db.frequencyCollection.Find(context.TODO(), bson.M{})
 	if err != nil {

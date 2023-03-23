@@ -42,7 +42,7 @@ func (ac *AuthController) requestOTP(email string, purpose string) (string, stri
 
 		// generating authorization token
 		claim := map[string]interface{}{
-			"exp":     time.Now().Add(time.Minute * (60 * 5)).Unix(),
+			"exp":     time.Now().Add(time.Minute * (60 * 15)).Unix(),
 			"tokenid": id,
 			"email":   email,
 			"purpose": purpose,
@@ -73,6 +73,11 @@ func (ac *AuthController) RequestOtpForSignup(c *gin.Context) {
 	c.BindJSON(&request)
 	email := request["email"].(string)
 	if email != "" {
+		err := ac.Handler.DataBase.IsEmailAvailable(email)
+		if err != nil {
+			c.AbortWithStatusJSON(400, err.Error())
+			return
+		}
 		token, _, err := ac.requestOTP(email, "signup")
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong")
@@ -122,10 +127,9 @@ func (ac *AuthController) IsUsernameAwailable(c *gin.Context) {
 	} else {
 		err := ac.Handler.DataBase.IsUsernameAwailable(username)
 		if err != nil {
-			ac.Handler.Logger.LogError(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
+			c.AbortWithStatusJSON(400, "username already exist")
 		} else {
-			c.JSON(200, "")
+			c.JSON(200, "username awailable")
 		}
 	}
 }
@@ -143,6 +147,12 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		c.BindJSON(&requestN)
 
 		if err := requestN.Examine(); err != nil {
+			c.AbortWithStatusJSON(400, err.Error())
+			return
+		}
+
+		err := ac.Handler.DataBase.IsUsernameAwailable(requestN.Username)
+		if err != nil {
 			c.AbortWithStatusJSON(400, err.Error())
 			return
 		}
@@ -212,6 +222,8 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		if err != nil || err1 != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "4. something went wrong, "+err.Error())
 		} else {
+			user.AccessToken = accessToken
+			c.SetCookie("SUT-AUTHORIZATION", "", -1, "/", "", false, true)
 			c.JSON(http.StatusCreated, user)
 			ac.Handler.Cache.RedisClient.Del(tokenId)
 			ac.Handler.Cache.RedisClient.Del(tokenId + ".auth")

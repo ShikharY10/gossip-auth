@@ -5,7 +5,7 @@ import "errors"
 type SignupRequest struct {
 	Name       string `json:"name"`
 	Username   string `json:"username"`
-	AvatarData string `json:"imageData"`
+	AvatarData string `json:"avatarData"`
 	AvatarExt  string `json:"avatarExt"`
 }
 

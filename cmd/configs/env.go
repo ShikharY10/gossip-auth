@@ -132,5 +132,33 @@ func LoadENV() *ENV {
 		env.LogServerPort = "10223"
 	}
 
+	value, found = os.LookupEnv("CLOUDINARY_API_KEY")
+	if found {
+		env.CLOUDINARY_API_KEY = value
+	} else {
+		env.CLOUDINARY_API_KEY = ""
+	}
+
+	value, found = os.LookupEnv("CLOUDINARY_API_SECRET")
+	if found {
+		env.CLOUDINARY_API_SECRET = value
+	} else {
+		env.CLOUDINARY_API_SECRET = ""
+	}
+
+	value, found = os.LookupEnv("CLOUDINARY_CLOUD_NAME")
+	if found {
+		env.CLOUDINARY_CLOUD_NAME = value
+	} else {
+		env.CLOUDINARY_CLOUD_NAME = ""
+	}
+
+	value, found = os.LookupEnv("CLOUDINARY_AVATAR_FOLDER_NAME")
+	if found {
+		env.CLOUDINARY_AVATAR_FOLDER_NAME = value
+	} else {
+		env.CLOUDINARY_AVATAR_FOLDER_NAME = ""
+	}
+
 	return &env
 }
