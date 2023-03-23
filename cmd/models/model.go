@@ -9,16 +9,15 @@ type User struct {
 	Email            string               `bson:"email,omitempty" json:"email"`
 	Avatar           Avatar               `bson:"avatar,omitempty" json:"avatar"`
 	DeliveryId       primitive.ObjectID   `bson:"deliveryId,omitempty" json:"deliveryId"`
-	Posts            []primitive.ObjectID `bson:"posts" json:"posts"`
-	Partners         []primitive.ObjectID `bson:"partners" json:"partners"`
-	PartnerRequests  []PartnerRequest     `bson:"partnerrequests" json:"partnerrequests"`
-	PartnerRequested []PartnerRequest     `bson:"partnerrequested" json:"partnerrequested"`
+	Posts            []primitive.ObjectID `bson:"posts,omitempty" json:"posts"`
+	Partners         []primitive.ObjectID `bson:"partners,omitempty" json:"partners"`
+	PartnerRequests  []PartnerRequest     `bson:"partnerrequests,omitempty" json:"partnerrequests"`
+	PartnerRequested []PartnerRequest     `bson:"partnerrequested,omitempty" json:"partnerrequested"`
 	AccessToken      string               `bson:"accessToken,omitempty" json:"accessToken,omitempty"`
-	Role             string               `bson:"role,omitempty" json:"role"`
-	Logout           bool                 `bson:"logout,omitempty" json:"logout"`
-	CreatedAt        string               `bson:"createdAt,omitempty" json:"createdAt"`
-	UpdatedAt        string               `bson:"updatedAt,omitempty" json:"updatedAt"`
-	DeletedAt        string               `bson:"deletedAt,omitempty" json:"deletedAt"`
+	Role             string               `bson:"role,omitempty" json:"role,omitempty"`
+	CreatedAt        string               `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
+	UpdatedAt        string               `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
+	DeletedAt        string               `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`
 }
 
 type PartnerRequest struct {

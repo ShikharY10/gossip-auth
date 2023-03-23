@@ -21,3 +21,18 @@ func (sr *SignupRequest) Examine() error {
 	}
 	return nil
 }
+
+type RequestLoginRequest struct {
+	Type     string `json:"type"`
+	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
+}
+
+func (lr *RequestLoginRequest) Examine() error {
+	if lr.Type == "" {
+		return errors.New("type not found")
+	} else if lr.Email == "" && lr.Username == "" {
+		return errors.New(lr.Type + "not found")
+	}
+	return nil
+}

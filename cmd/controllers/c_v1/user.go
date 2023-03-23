@@ -181,7 +181,6 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		user.PartnerRequested = []models.PartnerRequest{}
 		user.Posts = []primitive.ObjectID{}
 		user.ID = objectId
-		user.Logout = false
 		user.DeliveryId = *deliveryId
 		user.Name = requestN.Name
 		user.Role = "user"
@@ -262,7 +261,7 @@ func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 			return
 		}
 
-		opts := options.Find().SetProjection(bson.D{
+		opts := options.FindOne().SetProjection(bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "username", Value: 1},
 			{Key: "role", Value: 1},
@@ -333,22 +332,30 @@ func (ac *AuthController) RequestOtpForLogin(c *gin.Context) {
 	// }
 
 	// collecting request body
-	var request map[string]any
+	var request models.RequestLoginRequest
 	c.BindJSON(&request)
-	userIdType := request["type"].(string)
+	if err := request.Examine(); err != nil {
+		c.AbortWithStatusJSON(400, err.Error())
+	}
+
 	var email string
 	var err error
-	if userIdType == "username" {
-		username := request["username"].(string)
-		email, err = ac.Handler.DataBase.GetUserEmail(username)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, "wrong username")
+	if request.Type == "username" {
+		if request.Username != "" {
+			email, err = ac.Handler.DataBase.GetUserEmail(request.Username)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, "wrong username")
+			}
 		}
-	} else if userIdType == "email" {
-		email = request["email"].(string)
-		if email == "" {
-			c.AbortWithStatusJSON(http.StatusBadRequest, "wrong email")
+
+	} else if request.Type == "email" {
+		if request.Email != "" {
+			email = request.Email
 		}
+	}
+	if email == "" {
+		c.AbortWithStatusJSON(500, "email not found")
+		return
 	}
 	token, _, err := ac.requestOTP(email, "login")
 	if err != nil {
@@ -372,13 +379,13 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 	if !ac.Handler.Cache.VarifyOTP(c.Value("tokenid").(string), otp) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, "wrong OTP")
 	} else {
-		opts := options.Find().SetProjection(bson.D{
+		opts := options.FindOne().SetProjection(bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "name", Value: 1},
 			{Key: "username", Value: 1},
 			{Key: "email", Value: 1},
 			{Key: "avatar", Value: 1},
-			{Key: "messageId", Value: 1},
+			{Key: "deliveryId", Value: 1},
 			{Key: "posts", Value: 1},
 			{Key: "partners", Value: 1},
 			{Key: "partnerrequests", Value: 1},

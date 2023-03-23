@@ -112,21 +112,35 @@ func (db *DataBase) InsetUserInFrequencyTable(id primitive.ObjectID, username st
 	}
 }
 
-func (db *DataBase) GetUserData(filter bson.M, findOption *options.FindOptions) (*models.User, error) {
+func (db *DataBase) GetUserData(filter bson.M, findOptions *options.FindOneOptions) (*models.User, error) {
+	cursor := db.userCollection.FindOne(context.TODO(), filter, findOptions)
+
+	if cursor.Err() != nil {
+		return nil, cursor.Err()
+	}
+
+	var user models.User
+	err := cursor.Decode(&user)
+	if err != nil {
+		return nil, err
+	} else {
+
+		return &user, nil
+	}
+}
+
+func (db *DataBase) GetUsersData(filter bson.M, findOption *options.FindOptions) (*models.User, error) {
 	cursor, err := db.userCollection.Find(context.TODO(), filter, findOption)
 	if err != nil {
 		return nil, err
 	}
 
 	var users []models.User
-	for cursor.Next(context.TODO()) {
-		var user models.User
-		if err := cursor.Decode(&user); err != nil {
-			continue
-		} else {
-			users = append(users, user)
-		}
+	err = cursor.All(context.TODO(), &users)
+	if err != nil {
+		return nil, err
 	}
+
 	if len(users) > 0 {
 		return &users[0], nil
 	}
@@ -150,7 +164,7 @@ func (db *DataBase) UpdateLogoutStatus(username string, status bool) error {
 }
 
 func (db *DataBase) GetUserEmail(username string) (string, error) {
-	otps := options.Find().SetProjection(bson.D{{Key: "email", Value: 1}})
+	otps := options.FindOne().SetProjection(bson.D{{Key: "email", Value: 1}})
 	user, err := db.GetUserData(bson.M{"username": username}, otps)
 	if err != nil {
 		return "", err
