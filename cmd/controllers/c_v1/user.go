@@ -42,7 +42,7 @@ func (ac *AuthController) requestOTP(email string, purpose string) (string, stri
 
 		// generating authorization token
 		claim := map[string]interface{}{
-			"exp":     time.Now().Add(time.Minute * (60 * 5)).Unix(),
+			"exp":     time.Now().Add(time.Minute * (60 * 15)).Unix(),
 			"tokenid": id,
 			"email":   email,
 			"purpose": purpose,
@@ -73,6 +73,11 @@ func (ac *AuthController) RequestOtpForSignup(c *gin.Context) {
 	c.BindJSON(&request)
 	email := request["email"].(string)
 	if email != "" {
+		err := ac.Handler.DataBase.IsEmailAvailable(email)
+		if err != nil {
+			c.AbortWithStatusJSON(400, err.Error())
+			return
+		}
 		token, _, err := ac.requestOTP(email, "signup")
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong")
@@ -122,10 +127,9 @@ func (ac *AuthController) IsUsernameAwailable(c *gin.Context) {
 	} else {
 		err := ac.Handler.DataBase.IsUsernameAwailable(username)
 		if err != nil {
-			ac.Handler.Logger.LogError(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
+			c.AbortWithStatusJSON(400, "username already exist")
 		} else {
-			c.JSON(200, "")
+			c.JSON(200, "username awailable")
 		}
 	}
 }
@@ -143,6 +147,12 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		c.BindJSON(&requestN)
 
 		if err := requestN.Examine(); err != nil {
+			c.AbortWithStatusJSON(400, err.Error())
+			return
+		}
+
+		err := ac.Handler.DataBase.IsUsernameAwailable(requestN.Username)
+		if err != nil {
 			c.AbortWithStatusJSON(400, err.Error())
 			return
 		}
@@ -171,7 +181,6 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		user.PartnerRequested = []models.PartnerRequest{}
 		user.Posts = []primitive.ObjectID{}
 		user.ID = objectId
-		user.Logout = false
 		user.DeliveryId = *deliveryId
 		user.Name = requestN.Name
 		user.Role = "user"
@@ -212,6 +221,8 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		if err != nil || err1 != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "4. something went wrong, "+err.Error())
 		} else {
+			user.AccessToken = accessToken
+			c.SetCookie("SUT-AUTHORIZATION", "", -1, "/", "", false, true)
 			c.JSON(http.StatusCreated, user)
 			ac.Handler.Cache.RedisClient.Del(tokenId)
 			ac.Handler.Cache.RedisClient.Del(tokenId + ".auth")
@@ -250,7 +261,7 @@ func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 			return
 		}
 
-		opts := options.Find().SetProjection(bson.D{
+		opts := options.FindOne().SetProjection(bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "username", Value: 1},
 			{Key: "role", Value: 1},
@@ -290,19 +301,11 @@ func (ac AuthController) LogOut(c *gin.Context) {
 	c.Header("Content-Type", "application/json")
 	c.Header("service", "Gossip API")
 
-	username := c.Value("username").(string)
 	id := c.Value("id").(string)
 
 	ac.Handler.Cache.DeleteTokenExpiry(id)
 	c.SetCookie("refresh", "", -1, "/", "", false, true)
 	c.JSON(200, "Successfully Logout")
-
-	result := ac.Handler.DataBase.UpdateLogoutStatus(username, true)
-	if result == nil {
-		c.JSON(http.StatusCreated, "sucessfully logged out")
-	} else {
-		c.AbortWithStatus(http.StatusPreconditionFailed)
-	}
 }
 
 func (ac *AuthController) RequestOtpForLogin(c *gin.Context) {
@@ -321,22 +324,30 @@ func (ac *AuthController) RequestOtpForLogin(c *gin.Context) {
 	// }
 
 	// collecting request body
-	var request map[string]any
+	var request models.RequestLoginRequest
 	c.BindJSON(&request)
-	userIdType := request["type"].(string)
+	if err := request.Examine(); err != nil {
+		c.AbortWithStatusJSON(400, err.Error())
+	}
+
 	var email string
 	var err error
-	if userIdType == "username" {
-		username := request["username"].(string)
-		email, err = ac.Handler.DataBase.GetUserEmail(username)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, "wrong username")
+	if request.Type == "username" {
+		if request.Username != "" {
+			email, err = ac.Handler.DataBase.GetUserEmail(request.Username)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, "wrong username")
+			}
 		}
-	} else if userIdType == "email" {
-		email = request["email"].(string)
-		if email == "" {
-			c.AbortWithStatusJSON(http.StatusBadRequest, "wrong email")
+
+	} else if request.Type == "email" {
+		if request.Email != "" {
+			email = request.Email
 		}
+	}
+	if email == "" {
+		c.AbortWithStatusJSON(500, "email not found")
+		return
 	}
 	token, _, err := ac.requestOTP(email, "login")
 	if err != nil {
@@ -360,13 +371,13 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 	if !ac.Handler.Cache.VarifyOTP(c.Value("tokenid").(string), otp) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, "wrong OTP")
 	} else {
-		opts := options.Find().SetProjection(bson.D{
+		opts := options.FindOne().SetProjection(bson.D{
 			{Key: "_id", Value: 1},
 			{Key: "name", Value: 1},
 			{Key: "username", Value: 1},
 			{Key: "email", Value: 1},
 			{Key: "avatar", Value: 1},
-			{Key: "messageId", Value: 1},
+			{Key: "deliveryId", Value: 1},
 			{Key: "posts", Value: 1},
 			{Key: "partners", Value: 1},
 			{Key: "partnerrequests", Value: 1},
@@ -379,6 +390,36 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 		if err != nil {
 			c.AbortWithStatusJSON(500, err.Error())
 		} else {
+			// generating access token
+			accessClaim := map[string]interface{}{
+				"id":       user.ID.Hex(),
+				"username": user.Username,
+				"role":     user.Role,
+				"exp":      time.Now().Add(time.Hour * 1).Unix(),
+			}
+			accessToken, err := ac.Middleware.GenerateJWT(accessClaim, "access")
+			if err != nil {
+				c.AbortWithStatusJSON(500, err.Error())
+				return
+			}
+
+			// generating refresh token
+			refreshClaim := map[string]interface{}{
+				"id":  user.ID.Hex(),
+				"exp": time.Now().AddDate(1, 0, 0).Unix(),
+			}
+			refreshToken, err := ac.Middleware.GenerateJWT(refreshClaim, "refresh")
+			if err != nil {
+				c.AbortWithStatusJSON(500, err.Error())
+				return
+			}
+
+			ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, 1*time.Hour)
+			ac.Handler.Cache.SetRefreshTokenExpiry(user.ID.Hex(), refreshToken, 24*time.Hour)
+
+			c.SetCookie("refresh", refreshToken, 3600*24*365, "/", "", false, true)
+
+			user.AccessToken = accessToken
 			c.JSON(200, user)
 		}
 	}
@@ -417,39 +458,48 @@ func (ac *AuthController) UpdateUserName(c *gin.Context) {
 // user token based update
 func (ac *AuthController) UpdateAvatar(c *gin.Context) {
 	// setting response headers
-	c.Header("Content-Type", "application/json")
-	c.Header("service", "Gossip API")
+	c.Header("service", "Gossip-AUTH")
 
 	// collecting request body
-	var request map[string]any
+	var request models.AvatarUpdateRequest
 	c.BindJSON(&request)
+	err := request.Examine()
+	if err != nil {
+		c.AbortWithStatusJSON(400, err.Error())
+		return
+	}
 
 	id := c.Value("id").(string)
 
-	// name
-	imageData := request["imagedata"].(string)
-	imageExt := request["imageext"].(string)
-
-	if imageData != "" && imageExt != "" {
-
-		avatar, err := ac.Handler.Cloudinary.UploadUserAvatar(id+"temp", imageData, imageExt)
-		if err != nil {
-			c.AbortWithStatus(http.StatusPreconditionFailed)
-		} else {
-			if err != nil {
-				c.AbortWithStatus(http.StatusPreconditionFailed)
-			} else {
-				err := ac.Handler.DataBase.UpdateUserDetail(id, "avatar", *avatar)
-				// err := ac.Handler.DataBase.UpdateUserAvatar(uuid, *avatar)
-				if err == nil {
-					c.JSON(201, "Successfully updated")
-				} else {
-					c.AbortWithStatus(http.StatusPreconditionFailed)
-				}
-			}
-		}
-	} else {
+	avatar, err := ac.Handler.Cloudinary.UploadUserAvatar(id+"temp", request.AvatarData, request.AvatarExt)
+	if err != nil {
+		fmt.Println("Error while uploading avatar")
 		c.AbortWithStatus(http.StatusPreconditionFailed)
+	} else {
+		_id, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		opts := options.FindOne().SetProjection(bson.D{{Key: "avatar", Value: 1}})
+		user, err := ac.Handler.DataBase.GetUserData(bson.M{"_id": _id}, opts)
+		if err != nil {
+			fmt.Println("error while retrieving old user avatar")
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		err = ac.Handler.Cloudinary.DeleteUserAvatar(user.Avatar.PublicId)
+		if err != nil {
+			fmt.Println("error while deleting old avatar")
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		err = ac.Handler.DataBase.UpdateUserDetail(id, "avatar", *avatar)
+		if err == nil {
+			c.JSON(201, "Successfully updated")
+		} else {
+			c.AbortWithStatus(http.StatusPreconditionFailed)
+		}
 	}
 }
 
@@ -477,10 +527,8 @@ func (ac *AuthController) UpdateUsername(c *gin.Context) {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong: "+err.Error())
 			} else {
 				ac.Handler.Cache.RedisClient.Set(id+".updateusername", username, time.Duration(time.Minute*(60*5)))
-				response := map[string]string{
-					"token": token,
-				}
-				c.JSON(http.StatusCreated, response)
+				c.SetCookie("SUT-AUTHORIZATION", token, 60*5, "/", "", false, true)
+				c.JSON(http.StatusCreated, "Successfully OTP Sent")
 			}
 		}
 	}
@@ -579,7 +627,7 @@ func (ac *AuthController) UpdateEmail(c *gin.Context) {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong")
 			} else {
 				c.SetCookie("SUT-AUTHORIZATION", token, 300, "/", "", false, true)
-				c.JSON(200, "Successfullu Sent")
+				c.JSON(200, "Successfully OTP Sent")
 			}
 		}
 	}
@@ -608,7 +656,7 @@ func (ac *AuthController) VarifyEmailUpdateOTP(c *gin.Context) {
 
 		if ac.Handler.Cache.VarifyOTP(tokenID1, oldEmailOTP) && ac.Handler.Cache.VarifyOTP(tokenID2, newEmailOTP) {
 			id := c.Value("id").(string)
-			newEmail := ac.Handler.Cache.RedisClient.Get(tokenID2 + "_updateemail").Val()
+			newEmail := ac.Handler.Cache.RedisClient.Get(tokenID2 + ".updateemail").Val()
 			err := ac.Handler.DataBase.UpdateUserDetail(id, "email", newEmail)
 			if err != nil {
 				c.AbortWithStatusJSON(500, err.Error())

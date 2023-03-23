@@ -3,18 +3,18 @@ package models
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type User struct {
-	ID               primitive.ObjectID   `bson:"_id,omitempty" json:"_id,omitempty"`
-	Name             string               `bson:"name,omitempty" json:"name,omitempty"`
-	Username         string               `bson:"username,omitempty" json:"username,omitempty"`
-	Email            string               `bson:"email,omitempty" json:"email,omitempty"`
-	Avatar           Avatar               `bson:"avatar,omitempty" json:"avatar,omitempty"`
-	DeliveryId       primitive.ObjectID   `bson:"messageId,omitempty" json:"messageId"`
+	ID               primitive.ObjectID   `bson:"_id,omitempty" json:"_id"`
+	Name             string               `bson:"name,omitempty" json:"name"`
+	Username         string               `bson:"username,omitempty" json:"username"`
+	Email            string               `bson:"email,omitempty" json:"email"`
+	Avatar           Avatar               `bson:"avatar,omitempty" json:"avatar"`
+	DeliveryId       primitive.ObjectID   `bson:"deliveryId,omitempty" json:"deliveryId"`
 	Posts            []primitive.ObjectID `bson:"posts,omitempty" json:"posts"`
-	Partners         []primitive.ObjectID `bson:"partners,omitempty" json:"partners,omitempty"`
-	PartnerRequests  []PartnerRequest     `bson:"partnerrequests,omitempty" json:"partnerrequests,omitempty"`
-	PartnerRequested []PartnerRequest     `bson:"partnerrequested,omitempty" json:"partnerrequested,omitempty"`
+	Partners         []primitive.ObjectID `bson:"partners,omitempty" json:"partners"`
+	PartnerRequests  []PartnerRequest     `bson:"partnerrequests,omitempty" json:"partnerrequests"`
+	PartnerRequested []PartnerRequest     `bson:"partnerrequested,omitempty" json:"partnerrequested"`
+	AccessToken      string               `bson:"accessToken,omitempty" json:"accessToken,omitempty"`
 	Role             string               `bson:"role,omitempty" json:"role,omitempty"`
-	Logout           bool                 `bson:"logout,omitempty" json:"logout,omitempty"`
 	CreatedAt        string               `bson:"createdAt,omitempty" json:"createdAt,omitempty"`
 	UpdatedAt        string               `bson:"updatedAt,omitempty" json:"updatedAt,omitempty"`
 	DeletedAt        string               `bson:"deletedAt,omitempty" json:"deletedAt,omitempty"`

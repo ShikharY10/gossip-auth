@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -68,6 +69,25 @@ func (cloud *Cloudinary) UploadUserAvatar(tempName string, imageData string, ext
 	avatar.PublicId = uploadParam.PublicID
 	avatar.SecureUrl = uploadParam.SecureURL
 	return &avatar, nil
+}
+
+func (cloud *Cloudinary) DeleteUserAvatar(publicId string) error {
+	fmt.Println("publicId: ", publicId)
+	param := uploader.DestroyParams{
+		PublicID:   publicId,
+		Invalidate: true,
+	}
+	result, err := cloud.cloudinary.Upload.Destroy(
+		context.TODO(),
+		param,
+	)
+	fmt.Println("response code: ", result.Response.StatusCode)
+	fmt.Println("result: ", result.Result)
+	if err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
 
 // func ImageUploadHelper(input interface{}) (string, error) {

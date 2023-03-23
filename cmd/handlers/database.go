@@ -28,6 +28,32 @@ func InitializeDataBase(mongodb *config.MongoDB, logger *admin.Logger) *DataBase
 	}
 }
 
+func (db *DataBase) IsEmailAvailable(email string) error {
+	opts := options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := db.userCollection.Find(
+		context.TODO(),
+		bson.M{"email": email},
+		opts,
+	)
+	if err != nil {
+		return err
+	}
+	var users []models.User
+	for cursor.Next(context.TODO()) {
+		var user models.User
+		err := cursor.Decode(&user)
+		if err != nil {
+			return err
+		}
+		users = append(users, user)
+	}
+	if len(users) == 0 {
+		return nil
+	}
+	return errors.New("email already exist")
+
+}
+
 func (db *DataBase) IsUsernameAwailable(username string) error {
 	cursor, err := db.frequencyCollection.Find(context.TODO(), bson.M{})
 	if err != nil {
@@ -86,23 +112,37 @@ func (db *DataBase) InsetUserInFrequencyTable(id primitive.ObjectID, username st
 	}
 }
 
-func (db *DataBase) GetUserData(filter bson.M, findOption *options.FindOptions) (*models.User, error) {
+func (db *DataBase) GetUserData(filter bson.M, findOptions *options.FindOneOptions) (*models.User, error) {
+	cursor := db.userCollection.FindOne(context.TODO(), filter, findOptions)
+
+	if cursor.Err() != nil {
+		return nil, cursor.Err()
+	}
+
+	var user models.User
+	err := cursor.Decode(&user)
+	if err != nil {
+		return nil, err
+	} else {
+
+		return &user, nil
+	}
+}
+
+func (db *DataBase) GetUsersData(filter bson.M, findOption *options.FindOptions) (*[]models.User, error) {
 	cursor, err := db.userCollection.Find(context.TODO(), filter, findOption)
 	if err != nil {
 		return nil, err
 	}
 
 	var users []models.User
-	for cursor.Next(context.TODO()) {
-		var user models.User
-		if err := cursor.Decode(&user); err != nil {
-			continue
-		} else {
-			users = append(users, user)
-		}
+	err = cursor.All(context.TODO(), &users)
+	if err != nil {
+		return nil, err
 	}
+
 	if len(users) > 0 {
-		return &users[0], nil
+		return &users, nil
 	}
 	return nil, errors.New("no document found")
 }
@@ -123,9 +163,13 @@ func (db *DataBase) UpdateLogoutStatus(username string, status bool) error {
 	return err
 }
 
-func (db *DataBase) GetUserEmail(username string) (string, error) {
-	otps := options.Find().SetProjection(bson.D{{Key: "email", Value: 1}})
-	user, err := db.GetUserData(bson.M{"username": username}, otps)
+func (db *DataBase) GetUserEmail(id string) (string, error) {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return "", err
+	}
+	otps := options.FindOne().SetProjection(bson.D{{Key: "email", Value: 1}})
+	user, err := db.GetUserData(bson.M{"_id": _id}, otps)
 	if err != nil {
 		return "", err
 	} else {
