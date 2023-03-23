@@ -23,8 +23,8 @@ func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {
 	authorizedRoutes.Use(controller.Middleware.APIV1_Authorization())
 
 	// Update Routes
-	authorizedRoutes.POST("updateavatar", controller.UpdateAvatar)
-	authorizedRoutes.POST("updatedname", controller.UpdateUserName)
+	authorizedRoutes.PUT("updateavatar", controller.UpdateAvatar)
+	authorizedRoutes.PUT("updatedname", controller.UpdateUserName)
 
 	// Critical Update Routes
 	authorizedRoutes.POST("/updateusername", controller.UpdateUsername)

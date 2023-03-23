@@ -129,7 +129,7 @@ func (db *DataBase) GetUserData(filter bson.M, findOptions *options.FindOneOptio
 	}
 }
 
-func (db *DataBase) GetUsersData(filter bson.M, findOption *options.FindOptions) (*models.User, error) {
+func (db *DataBase) GetUsersData(filter bson.M, findOption *options.FindOptions) (*[]models.User, error) {
 	cursor, err := db.userCollection.Find(context.TODO(), filter, findOption)
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (db *DataBase) GetUsersData(filter bson.M, findOption *options.FindOptions)
 	}
 
 	if len(users) > 0 {
-		return &users[0], nil
+		return &users, nil
 	}
 	return nil, errors.New("no document found")
 }

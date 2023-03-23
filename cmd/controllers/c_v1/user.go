@@ -398,6 +398,36 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 		if err != nil {
 			c.AbortWithStatusJSON(500, err.Error())
 		} else {
+			// generating access token
+			accessClaim := map[string]interface{}{
+				"id":       user.ID.Hex(),
+				"username": user.Username,
+				"role":     user.Role,
+				"exp":      time.Now().Add(time.Hour * 1).Unix(),
+			}
+			accessToken, err := ac.Middleware.GenerateJWT(accessClaim, "access")
+			if err != nil {
+				c.AbortWithStatusJSON(500, err.Error())
+				return
+			}
+
+			// generating refresh token
+			refreshClaim := map[string]interface{}{
+				"id":  user.ID.Hex(),
+				"exp": time.Now().AddDate(1, 0, 0).Unix(),
+			}
+			refreshToken, err := ac.Middleware.GenerateJWT(refreshClaim, "refresh")
+			if err != nil {
+				c.AbortWithStatusJSON(500, err.Error())
+				return
+			}
+
+			ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, 1*time.Hour)
+			ac.Handler.Cache.SetRefreshTokenExpiry(user.ID.Hex(), refreshToken, 24*time.Hour)
+
+			c.SetCookie("refresh", refreshToken, 3600*24*365, "/", "", false, true)
+
+			user.AccessToken = accessToken
 			c.JSON(200, user)
 		}
 	}
@@ -436,39 +466,48 @@ func (ac *AuthController) UpdateUserName(c *gin.Context) {
 // user token based update
 func (ac *AuthController) UpdateAvatar(c *gin.Context) {
 	// setting response headers
-	c.Header("Content-Type", "application/json")
-	c.Header("service", "Gossip API")
+	c.Header("service", "Gossip-AUTH")
 
 	// collecting request body
-	var request map[string]any
+	var request models.AvatarUpdateRequest
 	c.BindJSON(&request)
+	err := request.Examine()
+	if err != nil {
+		c.AbortWithStatusJSON(400, err.Error())
+		return
+	}
 
 	id := c.Value("id").(string)
 
-	// name
-	imageData := request["imagedata"].(string)
-	imageExt := request["imageext"].(string)
-
-	if imageData != "" && imageExt != "" {
-
-		avatar, err := ac.Handler.Cloudinary.UploadUserAvatar(id+"temp", imageData, imageExt)
-		if err != nil {
-			c.AbortWithStatus(http.StatusPreconditionFailed)
-		} else {
-			if err != nil {
-				c.AbortWithStatus(http.StatusPreconditionFailed)
-			} else {
-				err := ac.Handler.DataBase.UpdateUserDetail(id, "avatar", *avatar)
-				// err := ac.Handler.DataBase.UpdateUserAvatar(uuid, *avatar)
-				if err == nil {
-					c.JSON(201, "Successfully updated")
-				} else {
-					c.AbortWithStatus(http.StatusPreconditionFailed)
-				}
-			}
-		}
-	} else {
+	avatar, err := ac.Handler.Cloudinary.UploadUserAvatar(id+"temp", request.AvatarData, request.AvatarExt)
+	if err != nil {
+		fmt.Println("Error while uploading avatar")
 		c.AbortWithStatus(http.StatusPreconditionFailed)
+	} else {
+		_id, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		opts := options.FindOne().SetProjection(bson.D{{Key: "avatar", Value: 1}})
+		user, err := ac.Handler.DataBase.GetUserData(bson.M{"_id": _id}, opts)
+		if err != nil {
+			fmt.Println("error while retrieving old user avatar")
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		err = ac.Handler.Cloudinary.DeleteUserAvatar(user.Avatar.PublicId)
+		if err != nil {
+			fmt.Println("error while deleting old avatar")
+			c.AbortWithStatusJSON(500, err.Error())
+			return
+		}
+		err = ac.Handler.DataBase.UpdateUserDetail(id, "avatar", *avatar)
+		if err == nil {
+			c.JSON(201, "Successfully updated")
+		} else {
+			c.AbortWithStatus(http.StatusPreconditionFailed)
+		}
 	}
 }
 

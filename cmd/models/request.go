@@ -36,3 +36,17 @@ func (lr *RequestLoginRequest) Examine() error {
 	}
 	return nil
 }
+
+type AvatarUpdateRequest struct {
+	AvatarData string `json:"avatarData"`
+	AvatarExt  string `json:"avatarExt"`
+}
+
+func (ar *AvatarUpdateRequest) Examine() error {
+	if ar.AvatarData == "" {
+		return errors.New("avatarData not found")
+	} else if ar.AvatarExt == "" {
+		return errors.New("avatarExt not found")
+	}
+	return nil
+}

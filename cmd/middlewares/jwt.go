@@ -198,7 +198,7 @@ func (j *Middleware) APIV1_Authorization() gin.HandlerFunc {
 					if err.Error() == "Token is expired" {
 						c.AbortWithStatusJSON(401, err.Error())
 					} else {
-						c.AbortWithStatus(400)
+						c.AbortWithStatusJSON(400, err.Error())
 					}
 				} else {
 					isTokenValid := j.Cache.IsTokenValid(claim["id"].(string), token, "access")
