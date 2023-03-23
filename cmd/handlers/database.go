@@ -163,9 +163,13 @@ func (db *DataBase) UpdateLogoutStatus(username string, status bool) error {
 	return err
 }
 
-func (db *DataBase) GetUserEmail(username string) (string, error) {
+func (db *DataBase) GetUserEmail(id string) (string, error) {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return "", err
+	}
 	otps := options.FindOne().SetProjection(bson.D{{Key: "email", Value: 1}})
-	user, err := db.GetUserData(bson.M{"username": username}, otps)
+	user, err := db.GetUserData(bson.M{"_id": _id}, otps)
 	if err != nil {
 		return "", err
 	} else {

@@ -18,19 +18,26 @@ func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {
 	router.POST("requestloginotp", controller.RequestOtpForLogin)
 	router.POST("/login", controller.Middleware.SingleUseTokenVarification("login", true), controller.LogIn)
 
+	// refresh token router
+	router.PUT("/refreshaccesstoken/:id", controller.RefreshAccessToken)
+
 	// Secured Routes
 	authorizedRoutes := router.Group("/")
 	authorizedRoutes.Use(controller.Middleware.APIV1_Authorization())
+
+	authorizedRoutes.GET("/auth", func(c *gin.Context) {
+		c.JSON(200, "Working")
+	})
 
 	// Update Routes
 	authorizedRoutes.PUT("updateavatar", controller.UpdateAvatar)
 	authorizedRoutes.PUT("updatedname", controller.UpdateUserName)
 
 	// Critical Update Routes
-	authorizedRoutes.POST("/updateusername", controller.UpdateUsername)
-	authorizedRoutes.POST("/varifyusernameupdate", controller.VarifyUsernameUpdateOTP)
-	authorizedRoutes.POST("/updateemail", controller.UpdateEmail)
-	authorizedRoutes.POST("/varifyemailupdate", controller.VarifyEmailUpdateOTP)
+	authorizedRoutes.PUT("/updateusername", controller.UpdateUsername)
+	authorizedRoutes.POST("/varifyusernameupdate", controller.Middleware.SingleUseTokenVarification("username", true), controller.VarifyUsernameUpdateOTP)
+	authorizedRoutes.PUT("/updateemail", controller.UpdateEmail)
+	authorizedRoutes.POST("/varifyemailupdate", controller.Middleware.APIV3EmailUpdateVarification(), controller.VarifyEmailUpdateOTP)
 
 	// Logout Route
 	authorizedRoutes.DELETE("/logout", controller.LogOut)

@@ -535,10 +535,8 @@ func (ac *AuthController) UpdateUsername(c *gin.Context) {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong: "+err.Error())
 			} else {
 				ac.Handler.Cache.RedisClient.Set(id+".updateusername", username, time.Duration(time.Minute*(60*5)))
-				response := map[string]string{
-					"token": token,
-				}
-				c.JSON(http.StatusCreated, response)
+				c.SetCookie("SUT-AUTHORIZATION", token, 60*5, "/", "", false, true)
+				c.JSON(http.StatusCreated, "Successfully OTP Sent")
 			}
 		}
 	}
@@ -637,7 +635,7 @@ func (ac *AuthController) UpdateEmail(c *gin.Context) {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong")
 			} else {
 				c.SetCookie("SUT-AUTHORIZATION", token, 300, "/", "", false, true)
-				c.JSON(200, "Successfullu Sent")
+				c.JSON(200, "Successfully OTP Sent")
 			}
 		}
 	}
@@ -666,7 +664,7 @@ func (ac *AuthController) VarifyEmailUpdateOTP(c *gin.Context) {
 
 		if ac.Handler.Cache.VarifyOTP(tokenID1, oldEmailOTP) && ac.Handler.Cache.VarifyOTP(tokenID2, newEmailOTP) {
 			id := c.Value("id").(string)
-			newEmail := ac.Handler.Cache.RedisClient.Get(tokenID2 + "_updateemail").Val()
+			newEmail := ac.Handler.Cache.RedisClient.Get(tokenID2 + ".updateemail").Val()
 			err := ac.Handler.DataBase.UpdateUserDetail(id, "email", newEmail)
 			if err != nil {
 				c.AbortWithStatusJSON(500, err.Error())
