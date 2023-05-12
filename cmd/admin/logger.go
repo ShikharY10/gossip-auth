@@ -32,20 +32,7 @@ func InitializeLogger(env *config.ENV, serviceType string) (*Logger, error) {
 		serviceType: serviceType,
 	}
 
-	logger.testLogger()
 	return logger, nil
-}
-
-func (l *Logger) testLogger() {
-	log := models.Log{
-		TimeStamp:   time.Now().String(),
-		ServiceType: "gateway",
-		Type:        "Test",
-		FileName:    "logger.go",
-		LineNumber:  31,
-		Message:     "Testing Logger from gateway",
-	}
-	l.RegisterNewLog(log)
 }
 
 func (l *Logger) RegisterNewLog(log models.Log) {
