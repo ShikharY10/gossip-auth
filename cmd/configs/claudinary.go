@@ -53,7 +53,7 @@ func (cloud *Cloudinary) UploadUserAvatar(tempName string, imageData string, ext
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	uploadParam, err := cloud.cloudinary.Upload.Upload(
 		ctx,
