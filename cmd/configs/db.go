@@ -53,8 +53,8 @@ func ConnectMongoDB(env *ENV) (*MongoDB, error) {
 	mongodb.User = storage.Collection("user")
 	mongodb.Frequnecy = storage.Collection("userFrequencyTable")
 
-	messaging := mongoClient.Database("delivery")
-	mongodb.Payloads = messaging.Collection("chats")
+	delivery := mongoClient.Database("delivery")
+	mongodb.Payloads = delivery.Collection("payloads")
 
 	defer cancel()
 	return &mongodb, nil
