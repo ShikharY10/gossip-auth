@@ -31,7 +31,7 @@ func AuthRoutes(router *gin.RouterGroup, controller *c_v1.AuthController) {
 
 	// Update Routes
 	authorizedRoutes.PUT("updateavatar", controller.UpdateAvatar)
-	authorizedRoutes.PUT("updatedname", controller.UpdateUserName)
+	authorizedRoutes.PUT("updatename", controller.UpdateUserName)
 
 	// Critical Update Routes
 	authorizedRoutes.PUT("/updateusername", controller.UpdateUsername)

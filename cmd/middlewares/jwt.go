@@ -76,6 +76,7 @@ func (j *Middleware) VarifyAccessToken(token string) (claim jwt.MapClaims, err e
 
 // varifies JWT refresh token and the claims the where set while creating the token
 func (j *Middleware) VarifyRefreshToken(token string) (claim jwt.MapClaims, err error) {
+	fmt.Println("refresg token: ", token)
 	newToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("something went wrong")
