@@ -78,7 +78,7 @@ func (db *DataBase) IsUsernameAwailable(username string) error {
 
 func (db *DataBase) AddUserPayloadsField() (*primitive.ObjectID, error) {
 	b := bson.M{
-		"msg": bson.M{},
+		"packets": bson.M{},
 	}
 	res, err := db.payloadsCollection.InsertOne(context.TODO(), b)
 	if err != nil {
@@ -163,13 +163,13 @@ func (db *DataBase) UpdateLogoutStatus(username string, status bool) error {
 	return err
 }
 
-func (db *DataBase) GetUserEmail(id string) (string, error) {
-	_id, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return "", err
-	}
+func (db *DataBase) GetUserEmail(filter bson.M) (string, error) {
+	// _id, err := primitive.ObjectIDFromHex(id)
+	// if err != nil {
+	// 	return "", err
+	// }
 	otps := options.FindOne().SetProjection(bson.D{{Key: "email", Value: 1}})
-	user, err := db.GetUserData(bson.M{"_id": _id}, otps)
+	user, err := db.GetUserData(filter, otps)
 	if err != nil {
 		return "", err
 	} else {
