@@ -1,8 +1,11 @@
 package config
 
 import (
+	"crypto/sha1"
+	"fmt"
 	"os"
 
+	"github.com/ShikharY10/gbAUTH/cmd/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -158,6 +161,19 @@ func LoadENV() *ENV {
 		env.CLOUDINARY_AVATAR_FOLDER_NAME = value
 	} else {
 		env.CLOUDINARY_AVATAR_FOLDER_NAME = ""
+	}
+
+	value, found = os.LookupEnv("SERVICE_NAME")
+	if found {
+		env.SERVICE_NAME = value
+	} else {
+
+		hash := sha1.New()
+		hash.Write([]byte(utils.GenerateRandomId()))
+		hashDigest := hash.Sum(nil)
+
+		hashString := fmt.Sprintf("%x", hashDigest)
+		env.SERVICE_NAME = "AUTH_" + hashString
 	}
 
 	return &env
