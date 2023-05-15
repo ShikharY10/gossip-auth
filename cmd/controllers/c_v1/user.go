@@ -177,8 +177,8 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		user.DeletedAt = ""
 		user.Email = c.Value("email").(string)
 		user.Partners = []primitive.ObjectID{}
-		user.PartnerRequests = []models.PartnerRequest{}
-		user.PartnerRequested = []models.PartnerRequest{}
+		user.PartnerRequests = map[string]models.PartnerRequest{}
+		user.PartnerRequested = map[string]models.PartnerRequest{}
 		user.Posts = []primitive.ObjectID{}
 		user.ID = objectId
 		user.DeliveryId = *deliveryId
@@ -192,7 +192,7 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 			"id":       objectId.Hex(),
 			"username": user.Username,
 			"role":     user.Role,
-			"exp":      time.Now().Add(time.Hour * 1).Unix(),
+			"exp":      time.Now().AddDate(0, 0, 1).Unix(),
 		}
 		accessToken, err := ac.Middleware.GenerateJWT(accessClaim, "access")
 		if err != nil {
@@ -203,7 +203,7 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 		// generating refresh token
 		refreshClaim := map[string]interface{}{
 			"id":  objectId.Hex(),
-			"exp": time.Now().AddDate(1, 0, 0).Unix(),
+			"exp": time.Now().AddDate(0, 1, 0).Unix(),
 		}
 		refreshToken, err := ac.Middleware.GenerateJWT(refreshClaim, "refresh")
 		if err != nil {
@@ -211,10 +211,10 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 			return
 		}
 
-		ac.Handler.Cache.SetAccessTokenExpiry(objectId.Hex(), accessToken, 1*time.Hour)
-		ac.Handler.Cache.SetRefreshTokenExpiry(objectId.Hex(), refreshToken, 24*time.Hour)
+		ac.Handler.Cache.SetAccessTokenExpiry(objectId.Hex(), accessToken, 24*time.Hour)
+		ac.Handler.Cache.SetRefreshTokenExpiry(objectId.Hex(), refreshToken, 30*24*time.Hour)
 
-		c.SetCookie("refresh", refreshToken, 3600*24, "/", "", false, true)
+		c.SetCookie("refresh", refreshToken, 3600*24*30, "/", "", false, true)
 
 		err = ac.Handler.DataBase.CreateNewUser(user)
 		err1 := ac.Handler.DataBase.InsetUserInFrequencyTable(user.ID, user.Username)
@@ -238,7 +238,7 @@ func (ac *AuthController) SignUp(c *gin.Context) {
 func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh")
 	if err != nil {
-		c.AbortWithStatusJSON(500, err.Error())
+		c.AbortWithStatusJSON(404, err.Error())
 		return
 	}
 
@@ -252,7 +252,7 @@ func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 	if isTokenValid {
 		refreshClaims, err := ac.Middleware.VarifyRefreshToken(refreshToken)
 		if err != nil {
-			c.AbortWithStatusJSON(401, "logged out")
+			c.AbortWithStatusJSON(401, err.Error()+" | logged out")
 			return
 		}
 		_id, err := primitive.ObjectIDFromHex(refreshClaims["id"].(string))
@@ -277,7 +277,7 @@ func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 			"id":       user.ID.Hex(),
 			"username": user.Username,
 			"role":     user.Role,
-			"exp":      time.Now().Add(time.Hour * 1).Unix(),
+			"exp":      time.Now().AddDate(0, 0, 1).Unix(),
 		}
 		accessToken, err := ac.Middleware.GenerateJWT(newAccessTokenClaim, "access")
 		if err != nil {
@@ -285,7 +285,7 @@ func (ac *AuthController) RefreshAccessToken(c *gin.Context) {
 			return
 		}
 
-		ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, time.Hour*1)
+		ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, 24*time.Hour)
 
 		c.JSON(200, map[string]string{
 			"accessToken": accessToken,
@@ -325,18 +325,22 @@ func (ac *AuthController) RequestOtpForLogin(c *gin.Context) {
 
 	// collecting request body
 	var request models.RequestLoginRequest
-	c.BindJSON(&request)
+	c.ShouldBindJSON(&request)
 	if err := request.Examine(); err != nil {
+		fmt.Println("Error1: ", err.Error())
 		c.AbortWithStatusJSON(400, err.Error())
+		return
 	}
+	fmt.Println("not stoping after return statement")
 
 	var email string
 	var err error
 	if request.Type == "username" {
 		if request.Username != "" {
-			email, err = ac.Handler.DataBase.GetUserEmail(request.Username)
+			email, err = ac.Handler.DataBase.GetUserEmail(bson.M{"username": request.Username})
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusBadRequest, "wrong username")
+				return
 			}
 		}
 
@@ -377,6 +381,7 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 			{Key: "username", Value: 1},
 			{Key: "email", Value: 1},
 			{Key: "avatar", Value: 1},
+			{Key: "role", Value: 1},
 			{Key: "deliveryId", Value: 1},
 			{Key: "posts", Value: 1},
 			{Key: "partners", Value: 1},
@@ -395,7 +400,7 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 				"id":       user.ID.Hex(),
 				"username": user.Username,
 				"role":     user.Role,
-				"exp":      time.Now().Add(time.Hour * 1).Unix(),
+				"exp":      time.Now().AddDate(0, 0, 1).Unix(),
 			}
 			accessToken, err := ac.Middleware.GenerateJWT(accessClaim, "access")
 			if err != nil {
@@ -406,7 +411,7 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 			// generating refresh token
 			refreshClaim := map[string]interface{}{
 				"id":  user.ID.Hex(),
-				"exp": time.Now().AddDate(1, 0, 0).Unix(),
+				"exp": time.Now().AddDate(0, 1, 0).Unix(),
 			}
 			refreshToken, err := ac.Middleware.GenerateJWT(refreshClaim, "refresh")
 			if err != nil {
@@ -414,12 +419,19 @@ func (ac *AuthController) LogIn(c *gin.Context) {
 				return
 			}
 
-			ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, 1*time.Hour)
-			ac.Handler.Cache.SetRefreshTokenExpiry(user.ID.Hex(), refreshToken, 24*time.Hour)
+			ac.Handler.Cache.SetAccessTokenExpiry(user.ID.Hex(), accessToken, 24*time.Hour)
+			ac.Handler.Cache.SetRefreshTokenExpiry(user.ID.Hex(), refreshToken, 30*24*time.Hour)
 
-			c.SetCookie("refresh", refreshToken, 3600*24*365, "/", "", false, true)
+			c.SetCookie("refresh", refreshToken, 3600*24*30, "/", "", false, true)
 
 			user.AccessToken = accessToken
+			fmt.Println("accessToken: ", accessToken)
+			_, err = ac.Middleware.VarifyAccessToken(accessToken)
+			if err != nil {
+				fmt.Println("Token failed: ", err.Error())
+			} else {
+				fmt.Println("token is valid")
+			}
 			c.JSON(200, user)
 		}
 	}
@@ -518,7 +530,15 @@ func (ac *AuthController) UpdateUsername(c *gin.Context) {
 	} else {
 		id := c.Value("id").(string)
 		username := request["username"].(string)
-		email, err := ac.Handler.DataBase.GetUserEmail(id)
+
+		_id, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			c.AbortWithStatusJSON(500, gin.H{
+				"statusstring": err.Error(),
+			})
+			return
+		}
+		email, err := ac.Handler.DataBase.GetUserEmail(bson.M{"_id": _id})
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, "something went wrong: "+err.Error())
 		} else {
@@ -617,7 +637,14 @@ func (ac *AuthController) UpdateEmail(c *gin.Context) {
 	} else {
 		id := c.Value("id").(string)
 		newEmail := request["newemail"].(string)
-		oldEmail, err := ac.Handler.DataBase.GetUserEmail(id)
+		_id, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			c.AbortWithStatusJSON(500, gin.H{
+				"statusstring": err.Error(),
+			})
+			return
+		}
+		oldEmail, err := ac.Handler.DataBase.GetUserEmail(bson.M{"_id": _id})
 
 		if err != nil {
 			c.AbortWithStatusJSON(500, err.Error())
