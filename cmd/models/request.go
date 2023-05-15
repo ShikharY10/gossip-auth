@@ -1,6 +1,9 @@
 package models
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type SignupRequest struct {
 	Name       string `json:"name"`
@@ -23,16 +26,22 @@ func (sr *SignupRequest) Examine() error {
 }
 
 type RequestLoginRequest struct {
-	Type     string `json:"type"`
+	Type     string `json:"type" binding:"required"`
 	Username string `json:"username,omitempty"`
 	Email    string `json:"email,omitempty"`
 }
 
 func (lr *RequestLoginRequest) Examine() error {
+	fmt.Println("type: ", lr.Type)
+	fmt.Println("email: ", lr.Email)
+	fmt.Println("username: ", lr.Username)
+
 	if lr.Type == "" {
 		return errors.New("type not found")
-	} else if lr.Email == "" && lr.Username == "" {
-		return errors.New(lr.Type + "not found")
+	} else if lr.Type == "username" && lr.Username == "" {
+		return errors.New("type set to {" + lr.Type + "}, but value not provided")
+	} else if lr.Type == "email" && lr.Email == "" {
+		return errors.New("type set to {" + lr.Type + "}, but value not provided")
 	}
 	return nil
 }
